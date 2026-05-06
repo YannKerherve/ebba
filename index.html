@@ -2,13 +2,13 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>EBBA MAERSK - SERVEUR</title>
+    <title>EBBA MAERSK - ENGINE SIMULATOR (SERVER)</title>
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { margin:0; background:#0b0f14; color:white; font-family:Arial; overflow: hidden; }
         #topbar { display:flex; justify-content:space-between; padding:10px; background:#121821; border-bottom: 2px solid #333; }
         #ship { position:relative; width:1400px; height:850px; margin:auto; background: #0b0f14; }
-        .room { position:absolute; border:2px solid #555; background:#1c2430; text-align:center; font-size:12px; color: #aaa; }
+        .room { position:absolute; border:2px solid #555; background:#1c2430; text-align:center; font-size:12px; color: #aaa; display: flex; align-items: center; justify-content: center; }
         .door { position:absolute; width:20px; height:20px; background:#999; border:1px solid #000; z-index: 5; }
         #log { position:absolute; bottom:20px; right:20px; width:350px; height: 250px; overflow: hidden; pointer-events:none; display: flex; flex-direction: column-reverse; z-index: 100; }
         #log div { font-size:13px; margin-top:3px; padding: 6px; background: rgba(0,0,0,0.7); border-left: 4px solid #ff8c00; border-radius: 0 4px 4px 0; }
@@ -17,14 +17,17 @@
         .player.dead::after { content: '??'; position: absolute; top: -15px; font-size: 14px; }
         #fire-overlay { position: absolute; top: 300px; left: 730px; width: 450px; height: 350px; pointer-events: none; z-index: 4; transition: background 1s; opacity: 0.6; }
         #timer-display { font-size: 24px; color: #ff4444; font-weight: bold; }
+        #qrcode { background: white; padding: 5px; border-radius: 5px; }
     </style>
 </head>
 <body>
+
 <div id="topbar">
     <div><b>EBBA MAERSK - ENGINE SIMULATOR</b><br>Code : <span id="code">...</span></div>
     <div id="timer-display">00:00</div>
     <img id="qrcode" style="width:80px;">
 </div>
+
 <div id="ship">
     <div id="fire-overlay"></div>
     <div class="room" style="top:250px; left:20px; width:150px; height:300px;">Passerelle</div>
@@ -59,6 +62,7 @@
     <div class="door" style="top:500px; left:1180px;"></div>
     <div class="room" style="top:250px; left:1200px; width:150px; height:450px;">PC Machine</div>
 </div>
+
 <div id="log"></div>
 
 <script>
@@ -68,13 +72,26 @@ let gameActive = true;
 let seconds = 0;
 let fireIntensity = 0;
 let co2Discharged = false;
+let fireParticles = [];
+let playersEPI = {}; // Pour suivre l'équipement (Action 50)
 
-// Mapping pour les noms d'actions dans les logs
-const actionNames = {
-    1: "STOP D'URGENCE MOTEUR",
-    41: "DÉCLENCHEMENT CO2 FIXE",
-    51: "CO2 LOCAL MACHINE",
-    107: "ÉVACUATION MACHINE"
+const actionMasterList = {
+    101: { n: "Informer Commandant", img: null },
+    102: { n: "Appel Interphone Machine", img: null },
+    103: { n: "Vérifier ECDIS", img: "ecdis.jpg", t: "ALERTE ECDIS : NAVIGATION" },
+    105: { n: "MAYDAY VHF", img: null },
+    107: { n: "Ordre évacuation Machine", img: null },
+    1: { n: "STOP URGENCE MP", img: null },
+    3: { n: "Vérifier Peinture Carter", img: "MP.jpg", t: "INSPECTION : PEINTURE NOIRCIE" },
+    4: { n: "Activer Water Mist", img: null },
+    8: { n: "Isoler Injecteur Cyl 4", img: null },
+    9: { n: "Water Mist Manuel", img: null },
+    12: { n: "Pressions Turbo", img: "temp_cylindre.jpg", t: "ALERTE : SURPRESSION TURBO" },
+    41: { n: "LARGAGE CO2 GÉNÉRAL", img: null },
+    50: { n: "S'équiper Tenue de Feu", img: null },
+    80: { n: "Acquitter Alarmes", img: null },
+    81: { n: "Analyse Courbes ICU", img: "icu.jpg", t: "COURBES ICU : DÉFAUT INJECTION" },
+    82: { n: "Températures échappement", img: "temp_cylindre.jpg", t: "RELEVÉ TEMPÉRATURES" }
 };
 
 const walkableRooms = [
@@ -104,49 +121,73 @@ peer.on('open', id => {
     document.getElementById("code").innerText = id;
     const url = window.location.href.replace("/index.html", "/player.html") + "?host=" + id;
     document.getElementById("qrcode").src = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" + encodeURIComponent(url);
-    addLog("?? Système EBBA MAERSK Initialisé.");
+    addLog("? Système EBBA MAERSK Initialisé.");
 });
 
 peer.on('connection', conn => {
     conn.on('data', data => {
         if (data.type === "join") {
-            players[conn.peer] = { ...data.player, x: 50, y: 300, vx: 0, vy: 0, conn: conn, dead: false };
-            addLog("?? " + data.player.name + " a rejoint le bord.");
+            players[conn.peer] = { ...data.player, x: 50, y: 300, vx: 0, vy: 0, conn: conn, dead: false, id: conn.peer };
+            addLog("? " + data.player.name + " a rejoint le bord.");
         }
         if (data.type === "move" && gameActive && !players[conn.peer]?.dead) {
             let p = players[conn.peer];
             if (p) { p.vx = data.vx; p.vy = data.vy; }
         }
         if (data.type === "action" && gameActive && !players[conn.peer]?.dead) {
-            handlePlayerAction(conn.peer, data.actionId);
+            handlePlayerAction(conn.peer, data.actionId, data.actionName);
         }
     });
 });
 
-function handlePlayerAction(peerId, actionId) {
+function handlePlayerAction(peerId, actionId, actionNameFromPlayer) {
     const p = players[peerId];
+    if (!p) return;
     const zone = getCurrentZone(p.x, p.y);
-    const actionLabel = actionNames[actionId] || "Action #" + actionId;
-    addLog("??? " + p.name + " (" + zone + ") : " + actionLabel);
+    const actionData = actionMasterList[actionId];
+    const finalName = actionData ? actionData.n : (actionNameFromPlayer || "Action #" + actionId);
 
-    if(actionId == 41 || actionId == 51) {
+    addLog(`?? ${p.name} (${zone}) : ${finalName}`);
+
+    if (actionData && actionData.img) {
+        p.conn.send({ type: "display_image", url: actionData.img, title: actionData.t });
+    }
+
+    // Effets des actions
+    if (actionId == 1) {
+        fireIntensity = Math.max(0, fireIntensity - 10);
+        addLog("?? Arrêt Moteur Principal : Danger réduit.");
+    }
+
+    if (actionId == 50) {
+        playersEPI[p.id] = true;
+        addLog(`??? ${p.name} est équipé pour le feu.`);
+    }
+
+    if (actionId == 4 || actionId == 9) {
+        fireIntensity = Math.max(0, fireIntensity - 25);
+        addLog(`?? Water Mist : Diminution de l'incendie.`);
+        // Dispersion visuelle
+        const flames = document.getElementById("fire-overlay");
+        for(let i=0; i<15; i++) if(flames.firstChild) flames.removeChild(flames.firstChild);
+    }
+
+    if (actionId == 41 && zone === "co2_room") {
         co2Discharged = true;
         fireIntensity = 0;
-        addLog("?? GAZ CO2 LIBÉRÉ - L'incendie s'éteint.");
-        // Mort de ceux en machine
-        Object.values(players).forEach(player => {
-            if(getCurrentZone(player.x, player.y) === "machine" && !player.dead) {
-                killPlayer(player, "Asphyxié par le CO2");
+        addLog("?? GAZ CO2 LIBÉRÉ !");
+        Object.values(players).forEach(pl => {
+            if(getCurrentZone(pl.x, pl.y) === "machine" && !pl.dead) {
+                killPlayer(pl, "Asphyxié par le CO2");
             }
         });
     }
-    if(actionId == 1) { fireIntensity -= 5; addLog("?? Moteur principal stoppé."); }
 }
 
 function killPlayer(player, reason) {
     player.dead = true;
     player.vx = 0; player.vy = 0;
-    addLog("?? " + player.name + " est mort : " + reason);
+    addLog("?? " + player.name + " : " + reason);
     player.conn.send({ type: "death", reason: reason });
 }
 
@@ -170,6 +211,7 @@ function isBlocked(x, y) {
     return !(inRoom || onDoor);
 }
 
+// Boucle Mouvement (20ms)
 setInterval(() => {
     if (!gameActive) return;
     Object.values(players).forEach(p => {
@@ -180,42 +222,66 @@ setInterval(() => {
     draw();
 }, 20);
 
+// Boucle Logique (1s)
 setInterval(() => {
     if (!gameActive) return;
     seconds++;
     let min = Math.floor(seconds/60); let sec = seconds % 60;
     document.getElementById("timer-display").innerText = (min<10?"0":"")+min+":"+(sec<10?"0":"")+sec;
 
-    // Propagation feu
-    if(seconds > 20 && !co2Discharged) {
-        fireIntensity += 0.3;
-        document.getElementById("fire-overlay").style.background = `radial-gradient(circle, rgba(255,100,0,${fireIntensity/100}) 0%, rgba(255,0,0,0) 70%)`;
+    // Propagation Incendie
+    if(seconds > 15 && !co2Discharged) {
+        fireIntensity += 0.4;
+        document.getElementById("fire-overlay").style.background = `radial-gradient(circle, rgba(255,80,0,${fireIntensity/100}) 0%, rgba(255,0,0,0) 80%)`;
 
-        // Mort par le feu (si intensité > 50%)
-        if(fireIntensity > 50) {
-            Object.values(players).forEach(p => {
-                if(getCurrentZone(p.x, p.y) === "machine" && !p.dead) {
-                    killPlayer(p, "Brûlé vif dans l'incendie machine");
-                }
-            });
+        // Flammes dynamiques
+        if (fireIntensity > 5 && fireParticles.length < fireIntensity * 2) {
+            createFlame();
         }
-    }
 
-    // Explosion de carter à 6min (360s)
-    if (seconds === 360) {
-        addLog("?? EXPLOSION DE CARTER !");
+        // Mort par Chaleur (Sans EPI)
         Object.values(players).forEach(p => {
-            let z = getCurrentZone(p.x, p.y);
-            if((z === "machine" || z === "pc_machine") && !p.dead) {
-                killPlayer(p, "Tué par l'explosion de carter");
+            let zone = getCurrentZone(p.x, p.y);
+            if((zone === "machine" || (fireIntensity > 70 && zone === "coursive")) && !p.dead) {
+                if(!playersEPI[p.id]) {
+                    killPlayer(p, "Chaleur insupportable (Pas d'EPI)");
+                }
             }
         });
     }
 
+    if (seconds === 360) {
+        addLog("?? EXPLOSION DE CARTER !");
+        Object.values(players).forEach(p => {
+            let z = getCurrentZone(p.x, p.y);
+            if((z === "machine" || z === "pc_machine") && !p.dead) killPlayer(p, "Explosion");
+        });
+    }
+
+    // Sync
     Object.values(players).forEach(p => {
         p.conn.send({ type: "sync", zone: getCurrentZone(p.x, p.y), fire: fireIntensity, time: seconds });
     });
 }, 1000);
+
+function createFlame() {
+    const container = document.getElementById("fire-overlay");
+    const f = document.createElement("div");
+    f.innerHTML = "??";
+    f.style.position = "absolute";
+    f.style.fontSize = Math.random() * 20 + 10 + "px";
+    f.style.left = Math.random() * 100 + "%";
+    f.style.top = Math.random() * 100 + "%";
+    f.style.transition = "all 2s";
+    f.style.opacity = "0.8";
+    container.appendChild(f);
+    fireParticles.push(f);
+    setTimeout(() => {
+        f.style.transform = `translateY(-30px) scale(1.5)`;
+        f.style.opacity = "0";
+    }, 100);
+    setTimeout(() => { f.remove(); fireParticles = fireParticles.filter(i => i !== f); }, 2000);
+}
 
 function draw() {
     document.querySelectorAll(".player").forEach(e => e.remove());
