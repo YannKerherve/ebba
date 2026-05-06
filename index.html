@@ -14,7 +14,7 @@
         #log div { font-size:13px; margin-top:3px; padding: 6px; background: rgba(0,0,0,0.7); border-left: 4px solid #ff8c00; border-radius: 0 4px 4px 0; }
         .player { position:absolute; width:26px; height:26px; border-radius:50%; color:white; font-size:12px; display:flex; justify-content:center; align-items:center; font-weight:bold; border:2px solid black; z-index: 10; transition: top 0.1s, left 0.1s; }
         .player.dead { background: #000 !important; border-color: red !important; color: red !important; opacity: 0.5; }
-        .player.dead::after { content: '??'; position: absolute; top: -15px; font-size: 14px; }
+        .player.dead::after { content: '‚ò†Ô∏è'; position: absolute; top: -15px; font-size: 14px; }
         #fire-overlay { position: absolute; top: 300px; left: 730px; width: 450px; height: 350px; pointer-events: none; z-index: 4; transition: background 1s; opacity: 0.6; }
         #timer-display { font-size: 24px; color: #ff4444; font-weight: bold; }
         #qrcode { background: white; padding: 5px; border-radius: 5px; }
@@ -33,12 +33,12 @@
     <div class="room" style="top:250px; left:20px; width:150px; height:300px;">Passerelle</div>
     <div class="room" style="top:150px; left:40px; width:120px; height:90px;">Monkey Island</div>
     <div class="door" style="top:215px; left:90px;"></div>
-    <div class="room" style="top:280px; left:170px; width:360px; height:40px;">…chappÈe</div>
+    <div class="room" style="top:280px; left:170px; width:360px; height:40px;">√âchapp√©e</div>
     <div class="door" style="top:300px; left:150px;"></div>
     <div class="room" style="top:340px; left:380px; width:150px; height:100px;">Plage de manoeuvre</div>
-    <div class="room" style="top:150px; left:530px; width:80px; height:350px;">Pont extÈrieur</div>
+    <div class="room" style="top:150px; left:530px; width:80px; height:350px;">Pont ext√©rieur</div>
     <div class="door" style="top:380px; left:530px;"></div>
-    <div class="room" style="top:220px; left:650px; width:120px; height:80px;">SÈparateur</div>
+    <div class="room" style="top:220px; left:650px; width:120px; height:80px;">S√©parateur</div>
     <div class="room" style="top:220px; left:850px; width:120px; height:80px;">Local barre</div>
     <div class="room" style="top:480px; left:150px; width:600px; height:60px;">Coursive</div>
     <div class="door" style="top:480px; left:150px;"></div>
@@ -73,25 +73,25 @@ let seconds = 0;
 let fireIntensity = 0;
 let co2Discharged = false;
 let fireParticles = [];
-let playersEPI = {}; // Pour suivre l'Èquipement (Action 50)
+let playersEPI = {}; // Pour suivre l'√©quipement (Action 50)
 
 const actionMasterList = {
     101: { n: "Informer Commandant", img: null },
     102: { n: "Appel Interphone Machine", img: null },
-    103: { n: "VÈrifier ECDIS", img: "ecdis.jpg", t: "ALERTE ECDIS : NAVIGATION" },
+    103: { n: "V√©rifier ECDIS", img: "ecdis.jpg", t: "ALERTE ECDIS : NAVIGATION" },
     105: { n: "MAYDAY VHF", img: null },
-    107: { n: "Ordre Èvacuation Machine", img: null },
+    107: { n: "Ordre √©vacuation Machine", img: null },
     1: { n: "STOP URGENCE MP", img: null },
-    3: { n: "VÈrifier Peinture Carter", img: "MP.jpg", t: "INSPECTION : PEINTURE NOIRCIE" },
+    3: { n: "V√©rifier Peinture Carter", img: "MP.jpg", t: "INSPECTION : PEINTURE NOIRCIE" },
     4: { n: "Activer Water Mist", img: null },
     8: { n: "Isoler Injecteur Cyl 4", img: null },
     9: { n: "Water Mist Manuel", img: null },
     12: { n: "Pressions Turbo", img: "temp_cylindre.jpg", t: "ALERTE : SURPRESSION TURBO" },
-    41: { n: "LARGAGE CO2 G…N…RAL", img: null },
-    50: { n: "S'Èquiper Tenue de Feu", img: null },
+    41: { n: "LARGAGE CO2 G√âN√âRAL", img: null },
+    50: { n: "S'√©quiper Tenue de Feu", img: null },
     80: { n: "Acquitter Alarmes", img: null },
-    81: { n: "Analyse Courbes ICU", img: "icu.jpg", t: "COURBES ICU : D…FAUT INJECTION" },
-    82: { n: "TempÈratures Èchappement", img: "temp_cylindre.jpg", t: "RELEV… TEMP…RATURES" }
+    81: { n: "Analyse Courbes ICU", img: "icu.jpg", t: "COURBES ICU : D√âFAUT INJECTION" },
+    82: { n: "Temp√©ratures √©chappement", img: "temp_cylindre.jpg", t: "RELEV√â TEMP√âRATURES" }
 };
 
 const walkableRooms = [
@@ -121,14 +121,14 @@ peer.on('open', id => {
     document.getElementById("code").innerText = id;
     const url = window.location.href.replace("/index.html", "/player.html") + "?host=" + id;
     document.getElementById("qrcode").src = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" + encodeURIComponent(url);
-    addLog("? SystËme EBBA MAERSK InitialisÈ.");
+    addLog("‚úÖ Syst√®me EBBA MAERSK Initialis√©.");
 });
 
 peer.on('connection', conn => {
     conn.on('data', data => {
         if (data.type === "join") {
             players[conn.peer] = { ...data.player, x: 50, y: 300, vx: 0, vy: 0, conn: conn, dead: false, id: conn.peer };
-            addLog("? " + data.player.name + " a rejoint le bord.");
+            addLog("‚öì " + data.player.name + " a rejoint le bord.");
         }
         if (data.type === "move" && gameActive && !players[conn.peer]?.dead) {
             let p = players[conn.peer];
@@ -147,26 +147,26 @@ function handlePlayerAction(peerId, actionId, actionNameFromPlayer) {
     const actionData = actionMasterList[actionId];
     const finalName = actionData ? actionData.n : (actionNameFromPlayer || "Action #" + actionId);
 
-    addLog(`?? ${p.name} (${zone}) : ${finalName}`);
+    addLog(`‚öôÔ∏è ${p.name} (${zone}) : ${finalName}`);
 
     if (actionData && actionData.img) {
         p.conn.send({ type: "display_image", url: actionData.img, title: actionData.t });
     }
 
     // Effets des actions
-    if (actionId == 1) {
+    if (actionId == 1) { 
         fireIntensity = Math.max(0, fireIntensity - 10);
-        addLog("?? ArrÍt Moteur Principal : Danger rÈduit.");
+        addLog("üõë Arr√™t Moteur Principal : Danger r√©duit.");
     }
-
+    
     if (actionId == 50) {
         playersEPI[p.id] = true;
-        addLog(`??? ${p.name} est ÈquipÈ pour le feu.`);
+        addLog(`üõ°Ô∏è ${p.name} est √©quip√© pour le feu.`);
     }
 
     if (actionId == 4 || actionId == 9) {
         fireIntensity = Math.max(0, fireIntensity - 25);
-        addLog(`?? Water Mist : Diminution de l'incendie.`);
+        addLog(`üíß Water Mist : Diminution de l'incendie.`);
         // Dispersion visuelle
         const flames = document.getElementById("fire-overlay");
         for(let i=0; i<15; i++) if(flames.firstChild) flames.removeChild(flames.firstChild);
@@ -175,10 +175,10 @@ function handlePlayerAction(peerId, actionId, actionNameFromPlayer) {
     if (actionId == 41 && zone === "co2_room") {
         co2Discharged = true;
         fireIntensity = 0;
-        addLog("?? GAZ CO2 LIB…R… !");
+        addLog("üíÄ GAZ CO2 LIB√âR√â !");
         Object.values(players).forEach(pl => {
             if(getCurrentZone(pl.x, pl.y) === "machine" && !pl.dead) {
-                killPlayer(pl, "AsphyxiÈ par le CO2");
+                killPlayer(pl, "Asphyxi√© par le CO2");
             }
         });
     }
@@ -187,7 +187,7 @@ function handlePlayerAction(peerId, actionId, actionNameFromPlayer) {
 function killPlayer(player, reason) {
     player.dead = true;
     player.vx = 0; player.vy = 0;
-    addLog("?? " + player.name + " : " + reason);
+    addLog("üíÄ " + player.name + " : " + reason);
     player.conn.send({ type: "death", reason: reason });
 }
 
@@ -233,7 +233,7 @@ setInterval(() => {
     if(seconds > 15 && !co2Discharged) {
         fireIntensity += 0.4;
         document.getElementById("fire-overlay").style.background = `radial-gradient(circle, rgba(255,80,0,${fireIntensity/100}) 0%, rgba(255,0,0,0) 80%)`;
-
+        
         // Flammes dynamiques
         if (fireIntensity > 5 && fireParticles.length < fireIntensity * 2) {
             createFlame();
@@ -251,7 +251,7 @@ setInterval(() => {
     }
 
     if (seconds === 360) {
-        addLog("?? EXPLOSION DE CARTER !");
+        addLog("üí• EXPLOSION DE CARTER !");
         Object.values(players).forEach(p => {
             let z = getCurrentZone(p.x, p.y);
             if((z === "machine" || z === "pc_machine") && !p.dead) killPlayer(p, "Explosion");
@@ -267,7 +267,7 @@ setInterval(() => {
 function createFlame() {
     const container = document.getElementById("fire-overlay");
     const f = document.createElement("div");
-    f.innerHTML = "??";
+    f.innerHTML = "üî•";
     f.style.position = "absolute";
     f.style.fontSize = Math.random() * 20 + 10 + "px";
     f.style.left = Math.random() * 100 + "%";
@@ -276,8 +276,8 @@ function createFlame() {
     f.style.opacity = "0.8";
     container.appendChild(f);
     fireParticles.push(f);
-    setTimeout(() => {
-        f.style.transform = `translateY(-30px) scale(1.5)`;
+    setTimeout(() => { 
+        f.style.transform = `translateY(-30px) scale(1.5)`; 
         f.style.opacity = "0";
     }, 100);
     setTimeout(() => { f.remove(); fireParticles = fireParticles.filter(i => i !== f); }, 2000);
