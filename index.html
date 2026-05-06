@@ -93,6 +93,7 @@ const actionMasterList = {
     81: { n: "Analyse ICU", img: "icu.jpeg", t: "COURBES ICU : DÉFAUT INJECTION" },
     20: { n: "Purger le bol du separateur HFO", img: "separateur.jpeg", t: "PROBLEME" },
     82: { n: "Températures échappement", img: "courbes.jpeg", t: "RELEVÉ TEMPÉRATURES" }
+    96: { n: "Mouiller l'ancre de Bâbord", img: null },
 };
 
 const walkableRooms = [
@@ -164,7 +165,10 @@ function handlePlayerAction(peerId, actionId, actionNameFromPlayer) {
         playersEPI[p.id] = true;
         addLog(`🛡️ ${p.name} est équipé pour le feu.`);
     }
-
+    if (actionId == 96) {
+        addLog(`⚓ ${p.name} : ANCRE MOUILLÉE (Navire stabilisé)`);
+        // Optionnel : gameActive = false; // Pour arrêter la simulation
+    }
     if (actionId == 4 || actionId == 9) {
         fireIntensity = Math.max(0, fireIntensity - 25);
         addLog(`💧 Water Mist : Diminution de l'incendie.`);
