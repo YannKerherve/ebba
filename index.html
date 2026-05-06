@@ -78,20 +78,21 @@ let playersEPI = {}; // Pour suivre l'équipement (Action 50)
 const actionMasterList = {
     101: { n: "Informer Commandant", img: null },
     102: { n: "Appel Interphone Machine", img: null },
-    103: { n: "Vérifier ECDIS", img: "ecdis.jpg", t: "ALERTE ECDIS : NAVIGATION" },
+    103: { n: "Vérifier ECDIS", img: "ecdis.jpeg", t: "ALERTE ECDIS : NAVIGATION" },
     105: { n: "MAYDAY VHF", img: null },
     107: { n: "Ordre évacuation Machine", img: null },
     1: { n: "STOP URGENCE MP", img: null },
-    3: { n: "Vérifier Peinture Carter", img: "MP.jpg", t: "INSPECTION : PEINTURE NOIRCIE" },
+    3: { n: "Vérifier Peinture Carter", img: "mp.jpeg", t: "INSPECTION : PEINTURE NOIRCIE" },
     4: { n: "Activer Water Mist", img: null },
     8: { n: "Isoler Injecteur Cyl 4", img: null },
     9: { n: "Water Mist Manuel", img: null },
-    12: { n: "Pressions Turbo", img: "temp_cylindre.jpg", t: "ALERTE : SURPRESSION TURBO" },
+    12: { n: "Pressions Turbo", img: "courbes.jpeg", t: "ALERTE : SURPRESSION TURBO" },
     41: { n: "LARGAGE CO2 GÉNÉRAL", img: null },
     50: { n: "S'équiper Tenue de Feu", img: null },
     80: { n: "Acquitter Alarmes", img: null },
-    81: { n: "Analyse Courbes ICU", img: "icu.jpg", t: "COURBES ICU : DÉFAUT INJECTION" },
-    82: { n: "Températures échappement", img: "temp_cylindre.jpg", t: "RELEVÉ TEMPÉRATURES" }
+    81: { n: "Analyse Courbes ICU", img: "icu.jpeg", t: "COURBES ICU : DÉFAUT INJECTION" },
+    20: { n: "Purger le bol du separateur HFO", img: "seprarteur.jpeg", t: "PROBLEME" },
+    82: { n: "Températures échappement", img: "tcourbes.jpeg", t: "RELEVÉ TEMPÉRATURES" }
 };
 
 const walkableRooms = [
