@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MANETTE EBBA MAERSK</title>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            margin:0;
+            background:#0b0f14;
+            color:white;
+            font-family: 'Segoe UI', sans-serif;
+            touch-action:none;
+            overflow:hidden;
+        }
+
+        /* Écran de mort */
+        #death-screen {
+            display:none;
+            position:fixed;
+            top:0; left:0; width:100%; height:100%;
+            background:rgba(139, 0, 0, 0.95);
+            color:white;
+            z-index:2000;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            text-align:center;
+            padding:20px;
+        }
+
+        #ui { height:100vh; display:flex; flex-direction:column; }
+
+        /* Header info */
+        #header {
+            padding:15px;
+            background:#1c2430;
+            border-bottom:3px solid #ff8c00;
+            display:flex;
+            justify-content:space-between;
+            font-weight:bold;
+        }
+
+        /* Joystick */
+        #joystick-area {
+            flex-grow:1;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+        }
+
+        .grid {
+            display:grid;
+            grid-template-columns:repeat(3, 90px);
+            grid-template-rows:repeat(3, 90px);
+            gap:15px;
+        }
+
+        .btn {
+            width:90px; height:90px;
+            background:#2a3441;
+            border:none;
+            border-radius:20px;
+            color:white;
+            font-size:35px;
+            box-shadow: 0 4px #1a2029;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: none; background:#ff8c00; }
+
+        /* Actions */
+        #action-trigger {
+            width:85%;
+            height:70px;
+            background:#ff8c00;
+            color:black;
+            border:none;
+            border-radius:15px;
+            font-weight:bold;
+            font-size:18px;
+            margin-top:30px;
+            text-transform: uppercase;
+        }
+
+        /* Menu Actions Overlay */
+        #menu-overlay {
+            display:none;
+            position:fixed;
+            top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.98);
+            z-index:1500;
+            padding:20px;
+            box-sizing:border-box;
+        }
+
+        .scroll { height:75%; overflow-y:auto; margin-top:20px; }
+
+        .action-item {
+            padding:18px;
+            background:#1c2430;
+            border-left:6px solid #ff8c00;
+            margin-bottom:12px;
+            border-radius:4px;
+            font-size:15px;
+            font-weight: bold;
+        }
+        .action-item:active { background: #ff8c00; color: black; }
+
+        #close-menu {
+            width:100%; height:60px;
+            background:#444; color:white;
+            border:none; border-radius:10px; margin-top:10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="death-screen">
+        <h1 style="font-size: 50px;">☠️</h1>
+        <h1 style="margin:0;">VOUS ÊTES MORT</h1>
+        <p id="death-reason" style="font-size:18px; margin-top:20px; color:#ffcccc;"></p>
+        <button onclick="location.reload()" style="margin-top:30px; padding:10px 20px;">RECONNEXION</button>
+    </div>
+
+    <div id="ui">
+        <div id="header">
+            <span id="p-name">OFFICIER</span>
+            <span id="p-zone" style="color:#ff8c00">ZONE : -</span>
+        </div>
+
+        <div id="joystick-area">
+            <div class="grid">
+                <div></div><button class="btn" id="up">⬆️</button><div></div>
+                <button class="btn" id="left">⬅️</button><button class="btn" style="background:#121821; color:#333;" disabled>🔘</button><button class="btn" id="right">➡️</button>
+                <div></div><button class="btn" id="down">⬇️</button><div></div>
+            </div>
+            <button id="action-trigger">MENU DES ACTIONS</button>
+        </div>
+    </div>
+
+    <div id="menu-overlay">
+        <h2 style="color:#ff8c00; margin:0; border-bottom:1px solid #333; padding-bottom:10px;">ACTIONS DISPONIBLES</h2>
+        <div class="scroll" id="action-list">
+            </div>
+        <button id="close-menu" onclick="toggleMenu(false)">FERMER</button>
+    </div>
+
+<script>
+let conn;
+const peer = new Peer();
+const myName = prompt("Nom de l'officier ?") || "Officier";
+const myColor = "hsl(" + Math.random() * 360 + ", 70%, 60%)";
+let currentZone = "unknown";
+
+// Dictionnaire des actions pour l'affichage mobile
+const actionsTable = [
+    { id: 1, name: "STOP D'URGENCE MOTEUR" },
+    { id: 41, name: "LARGAGE CO2 FIXE (GÉNÉRAL)" },
+    { id: 51, name: "LARGAGE CO2 LOCAL (MACHINE)" },
+    { id: 107, name: "ORDRE D'ÉVACUATION MACHINE" },
+    { id: 31, name: "DÉCLENCHER ALARME FEU" },
+    { id: 68, name: "ÉMETTRE MAYDAY" }
+];
+
+peer.on('open', () => {
+    const hostId = new URLSearchParams(window.location.search).get("host");
+    conn = peer.connect(hostId);
+
+    conn.on('open', () => {
+        document.getElementById("p-name").innerText = myName;
+        conn.send({ type: "join", player: { name: myName, color: myColor } });
+    });
+
+    conn.on('data', data => {
+        // Synchronisation de la zone
+        if(data.type === "sync") {
+            currentZone = data.zone;
+            document.getElementById("p-zone").innerText = "ZONE : " + data.zone.toUpperCase();
+        }
+
+        // Gestion de la mort
+        if(data.type === "death") {
+            document.getElementById("death-screen").style.display = "flex";
+            document.getElementById("death-reason").innerText = data.reason;
+        }
+    });
+});
+
+// --- Mouvements ---
+function sendMove(vx, vy) {
+    if(conn && conn.open) conn.send({ type: "move", vx, vy });
+}
+
+const setupBtn = (id, vx, vy) => {
+    const b = document.getElementById(id);
+    // Support Tactile
+    b.ontouchstart = (e) => { e.preventDefault(); sendMove(vx, vy); };
+    b.ontouchend = (e) => { e.preventDefault(); sendMove(0, 0); };
+    // Support Souris
+    b.onmousedown = () => sendMove(vx, vy);
+    b.onmouseup = () => sendMove(0, 0);
+};
+
+setupBtn("up", 0, -6);
+setupBtn("down", 0, 6);
+setupBtn("left", -6, 0);
+setupBtn("right", 6, 0);
+
+// --- Menu Actions ---
+document.getElementById("action-trigger").onclick = () => toggleMenu(true);
+
+function toggleMenu(show) {
+    const overlay = document.getElementById("menu-overlay");
+    const list = document.getElementById("action-list");
+
+    if(show) {
+        list.innerHTML = "";
+        actionsTable.forEach(act => {
+            const div = document.createElement("div");
+            div.className = "action-item";
+            div.innerText = act.name;
+            div.onclick = () => {
+                conn.send({ type: "action", actionId: act.id });
+                toggleMenu(false);
+            };
+            list.appendChild(div);
+        });
+        overlay.style.display = "block";
+    } else {
+        overlay.style.display = "none";
+    }
+}
+</script>
+</body>
+</html>

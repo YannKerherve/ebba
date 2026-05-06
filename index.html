@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>EBBA MAERSK - SERVEUR</title>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        body { margin:0; background:#0b0f14; color:white; font-family:Arial; overflow: hidden; }
+        #topbar { display:flex; justify-content:space-between; padding:10px; background:#121821; border-bottom: 2px solid #333; }
+        #ship { position:relative; width:1400px; height:850px; margin:auto; background: #0b0f14; }
+        .room { position:absolute; border:2px solid #555; background:#1c2430; text-align:center; font-size:12px; color: #aaa; }
+        .door { position:absolute; width:20px; height:20px; background:#999; border:1px solid #000; z-index: 5; }
+        #log { position:absolute; bottom:20px; right:20px; width:350px; height: 250px; overflow: hidden; pointer-events:none; display: flex; flex-direction: column-reverse; z-index: 100; }
+        #log div { font-size:13px; margin-top:3px; padding: 6px; background: rgba(0,0,0,0.7); border-left: 4px solid #ff8c00; border-radius: 0 4px 4px 0; }
+        .player { position:absolute; width:26px; height:26px; border-radius:50%; color:white; font-size:12px; display:flex; justify-content:center; align-items:center; font-weight:bold; border:2px solid black; z-index: 10; transition: top 0.1s, left 0.1s; }
+        .player.dead { background: #000 !important; border-color: red !important; color: red !important; opacity: 0.5; }
+        .player.dead::after { content: '??'; position: absolute; top: -15px; font-size: 14px; }
+        #fire-overlay { position: absolute; top: 300px; left: 730px; width: 450px; height: 350px; pointer-events: none; z-index: 4; transition: background 1s; opacity: 0.6; }
+        #timer-display { font-size: 24px; color: #ff4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div id="topbar">
+    <div><b>EBBA MAERSK - ENGINE SIMULATOR</b><br>Code : <span id="code">...</span></div>
+    <div id="timer-display">00:00</div>
+    <img id="qrcode" style="width:80px;">
+</div>
+<div id="ship">
+    <div id="fire-overlay"></div>
+    <div class="room" style="top:250px; left:20px; width:150px; height:300px;">Passerelle</div>
+    <div class="room" style="top:150px; left:40px; width:120px; height:90px;">Monkey Island</div>
+    <div class="door" style="top:215px; left:90px;"></div>
+    <div class="room" style="top:280px; left:170px; width:360px; height:40px;">Échappée</div>
+    <div class="door" style="top:300px; left:150px;"></div>
+    <div class="room" style="top:340px; left:380px; width:150px; height:100px;">Plage de manoeuvre</div>
+    <div class="room" style="top:150px; left:530px; width:80px; height:350px;">Pont extérieur</div>
+    <div class="door" style="top:380px; left:530px;"></div>
+    <div class="room" style="top:220px; left:650px; width:120px; height:80px;">Séparateur</div>
+    <div class="room" style="top:220px; left:850px; width:120px; height:80px;">Local barre</div>
+    <div class="room" style="top:480px; left:150px; width:600px; height:60px;">Coursive</div>
+    <div class="door" style="top:480px; left:150px;"></div>
+    <div class="room" style="top:560px; left:250px; width:120px; height:80px;">Fire locker</div>
+    <div class="room" style="top:560px; left:410px; width:120px; height:80px;">CO2 room</div>
+    <div class="room" style="top:560px; left:570px; width:140px; height:80px;">Accomodations</div>
+    <div class="door" style="top:540px; left:300px;"></div>
+    <div class="door" style="top:460px; left:460px;"></div>
+    <div class="door" style="top:540px; left:620px;"></div>
+    <div class="room" id="machine" style="top:300px; left:730px; width:450px; height:350px; border: 3px solid #777;">
+        MACHINE
+        <div class="room" style="top:50px; left:20px; width:80px; height:30px;">DG4</div>
+        <div class="room" style="top:100px; left:20px; width:80px; height:30px;">DG3</div>
+        <div class="room" style="top:150px; left:20px; width:80px; height:30px;">DG2</div>
+        <div class="room" style="top:200px; left:20px; width:80px; height:30px;">DG1</div>
+        <div class="room" style="top:100px; left:130px; width:200px; height:100px;">MP (Moteur Principal)</div>
+    </div>
+    <div class="door" style="top:500px; left:730px;"></div>
+    <div class="door" style="top:280px; left:750px;"></div>
+    <div class="door" style="top:280px; left:930px;"></div>
+    <div class="door" style="top:500px; left:1180px;"></div>
+    <div class="room" style="top:250px; left:1200px; width:150px; height:450px;">PC Machine</div>
+</div>
+<div id="log"></div>
+
+<script>
+const peer = new Peer();
+let players = {};
+let gameActive = true;
+let seconds = 0;
+let fireIntensity = 0;
+let co2Discharged = false;
+
+// Mapping pour les noms d'actions dans les logs
+const actionNames = {
+    1: "STOP D'URGENCE MOTEUR",
+    41: "DÉCLENCHEMENT CO2 FIXE",
+    51: "CO2 LOCAL MACHINE",
+    107: "ÉVACUATION MACHINE"
+};
+
+const walkableRooms = [
+    {id: "passerelle", x:20, y:250, w:150, h:300},
+    {id: "monkey", x:40, y:150, w:120, h:90},
+    {id: "echappee", x:170, y:280, w:360, h:40},
+    {id: "plage", x:380, y:340, w:150, h:100},
+    {id: "pont_ext", x:530, y:150, w:80, h:350},
+    {id: "separateur", x:650, y:220, w:120, h:80},
+    {id: "local_barre", x:850, y:220, w:120, h:80},
+    {id: "coursive", x:150, y:480, w:600, h:60},
+    {id: "fire_locker", x:250, y:560, w:120, h:80},
+    {id: "co2_room", x:410, y:560, w:120, h:80},
+    {id: "accomodations", x:570, y:560, w:140, h:80},
+    {id: "machine", x:730, y:300, w:450, h:350},
+    {id: "pc_machine", x:1200, y:250, w:150, h:450}
+];
+
+const doors = [
+    {x:90, y:215, w:20, h:20}, {x:150, y:300, w:20, h:20}, {x:530, y:380, w:20, h:20},
+    {x:150, y:480, w:20, h:20}, {x:300, y:540, w:20, h:20}, {x:460, y:540, w:20, h:20},
+    {x:620, y:540, w:20, h:20}, {x:730, y:500, w:20, h:20}, {x:750, y:280, w:20, h:20},
+    {x:930, y:280, w:20, h:20}, {x:1180, y:500, w:20, h:20}
+];
+
+peer.on('open', id => {
+    document.getElementById("code").innerText = id;
+    const url = window.location.href.replace("/index.html", "/player.html") + "?host=" + id;
+    document.getElementById("qrcode").src = "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=" + encodeURIComponent(url);
+    addLog("?? Système EBBA MAERSK Initialisé.");
+});
+
+peer.on('connection', conn => {
+    conn.on('data', data => {
+        if (data.type === "join") {
+            players[conn.peer] = { ...data.player, x: 50, y: 300, vx: 0, vy: 0, conn: conn, dead: false };
+            addLog("?? " + data.player.name + " a rejoint le bord.");
+        }
+        if (data.type === "move" && gameActive && !players[conn.peer]?.dead) {
+            let p = players[conn.peer];
+            if (p) { p.vx = data.vx; p.vy = data.vy; }
+        }
+        if (data.type === "action" && gameActive && !players[conn.peer]?.dead) {
+            handlePlayerAction(conn.peer, data.actionId);
+        }
+    });
+});
+
+function handlePlayerAction(peerId, actionId) {
+    const p = players[peerId];
+    const zone = getCurrentZone(p.x, p.y);
+    const actionLabel = actionNames[actionId] || "Action #" + actionId;
+    addLog("??? " + p.name + " (" + zone + ") : " + actionLabel);
+
+    if(actionId == 41 || actionId == 51) {
+        co2Discharged = true;
+        fireIntensity = 0;
+        addLog("?? GAZ CO2 LIBÉRÉ - L'incendie s'éteint.");
+        // Mort de ceux en machine
+        Object.values(players).forEach(player => {
+            if(getCurrentZone(player.x, player.y) === "machine" && !player.dead) {
+                killPlayer(player, "Asphyxié par le CO2");
+            }
+        });
+    }
+    if(actionId == 1) { fireIntensity -= 5; addLog("?? Moteur principal stoppé."); }
+}
+
+function killPlayer(player, reason) {
+    player.dead = true;
+    player.vx = 0; player.vy = 0;
+    addLog("?? " + player.name + " est mort : " + reason);
+    player.conn.send({ type: "death", reason: reason });
+}
+
+function getCurrentZone(x, y) {
+    for (let r of walkableRooms) {
+        if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return r.id;
+    }
+    return "unknown";
+}
+
+function isBlocked(x, y) {
+    const size = 20;
+    let inRoom = false;
+    for (let r of walkableRooms) {
+        if (x >= r.x && x + size <= r.x + r.w && y >= r.y && y + size <= r.y + r.h) { inRoom = true; break; }
+    }
+    let onDoor = false;
+    for (let d of doors) {
+        if (x + size > d.x && x < d.x + d.w && y + size > d.y && y < d.y + d.h) { onDoor = true; break; }
+    }
+    return !(inRoom || onDoor);
+}
+
+setInterval(() => {
+    if (!gameActive) return;
+    Object.values(players).forEach(p => {
+        if (p.dead) return;
+        let nX = p.x + p.vx; let nY = p.y + p.vy;
+        if (!isBlocked(nX, nY)) { p.x = nX; p.y = nY; }
+    });
+    draw();
+}, 20);
+
+setInterval(() => {
+    if (!gameActive) return;
+    seconds++;
+    let min = Math.floor(seconds/60); let sec = seconds % 60;
+    document.getElementById("timer-display").innerText = (min<10?"0":"")+min+":"+(sec<10?"0":"")+sec;
+
+    // Propagation feu
+    if(seconds > 20 && !co2Discharged) {
+        fireIntensity += 0.3;
+        document.getElementById("fire-overlay").style.background = `radial-gradient(circle, rgba(255,100,0,${fireIntensity/100}) 0%, rgba(255,0,0,0) 70%)`;
+
+        // Mort par le feu (si intensité > 50%)
+        if(fireIntensity > 50) {
+            Object.values(players).forEach(p => {
+                if(getCurrentZone(p.x, p.y) === "machine" && !p.dead) {
+                    killPlayer(p, "Brûlé vif dans l'incendie machine");
+                }
+            });
+        }
+    }
+
+    // Explosion de carter à 6min (360s)
+    if (seconds === 360) {
+        addLog("?? EXPLOSION DE CARTER !");
+        Object.values(players).forEach(p => {
+            let z = getCurrentZone(p.x, p.y);
+            if((z === "machine" || z === "pc_machine") && !p.dead) {
+                killPlayer(p, "Tué par l'explosion de carter");
+            }
+        });
+    }
+
+    Object.values(players).forEach(p => {
+        p.conn.send({ type: "sync", zone: getCurrentZone(p.x, p.y), fire: fireIntensity, time: seconds });
+    });
+}, 1000);
+
+function draw() {
+    document.querySelectorAll(".player").forEach(e => e.remove());
+    Object.values(players).forEach(p => {
+        const d = document.createElement("div");
+        d.className = "player" + (p.dead ? " dead" : "");
+        d.style.left = p.x+"px"; d.style.top = p.y+"px"; d.style.background = p.color;
+        d.innerText = p.name[0].toUpperCase();
+        document.getElementById("ship").appendChild(d);
+    });
+}
+
+function addLog(t) {
+    const l = document.getElementById("log");
+    const d = document.createElement("div");
+    d.innerText = t; l.prepend(d);
+}
+</script>
+</body>
+</html>
